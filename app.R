@@ -11,7 +11,9 @@ library(shiny)
 library(data.table)
 library(magrittr)
 library(shinydashboard)
+library(dashboardthemes)
 library(leaflet)
+source("apariencia.R")
 
 buscar_perfiles <- function(perfiles,
                             rango_lon = NULL,
@@ -58,7 +60,8 @@ nombres_horizonte <- nombres[!startsWith(nombres$Nombre_csv, "perfil_"), ]
 variables_horizonte <- setNames(nombres_horizonte$Nombre_csv, nombres_horizonte$Nombre_sisinta)
 
 ui <- dashboardPage(
-    dashboardHeader(title = "Interfaz SISINTAR"),
+
+    dashboardHeader(title = img(src="logo.png", width = 170)),
     dashboardSidebar(
         sidebarMenu(
             selectInput("formato", "Formato", choices = c("CSV", "EXCEL")),
@@ -66,6 +69,9 @@ ui <- dashboardPage(
         )
     ),
     dashboardBody(
+        ### changing theme
+        sisinta_theme,
+
         fluidRow(
             box(title = h2("Selección de sitios"), width = 12,
                 fluidRow(
