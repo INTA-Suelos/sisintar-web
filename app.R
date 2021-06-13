@@ -137,29 +137,38 @@ ui <- dashboardPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
     perfiles_todo <- data.table::fread("datos/perfiles.csv")
+    perfiles_todo[, selected := TRUE]
+
+    updateNumericInput(inputId = "oeste", value = min(perfiles_todo$lon))
+    updateNumericInput(inputId = "este", value = max(perfiles_todo$lon))
+    updateNumericInput(inputId = "sur", value = min(perfiles_todo$lat))
+    updateNumericInput(inputId = "norte", value = max(perfiles_todo$lat))
+
+    colors <- c("#A66E2D", "#005579")
 
 
     perfiles <- reactive({
+        # browser()
         perfiles_todo %>%
-            buscar_perfiles(rango_lat = c(input$sur, input$norte),
-                            rango_lon = c(input$oeste, input$este),
-                            rango_fecha = c(input$fecha_inicio, input$fecha_final))
-
+            copy() %>%
+            .[, selected := lat %between%  c(input$sur, input$norte) &
+                  lon %between%  c(input$oeste, input$este) &
+                  fecha %between%  c(input$fecha_inicio, input$fecha_final)]
     })
 
     tiempo <- reactive(perfiles() %>%
-                           .[, .N, by = .(fecha)])
+                           .[selected == TRUE])
 
 
     output$serie <- plotly::renderPlotly(
         tiempo() %>%
-            plotly::plot_ly(x = ~fecha, source = "serie_temporal") %>%
-            plotly::add_bars(y = ~ N) %>%
-            plotly::layout(yaxis = list(
-                fixedrange = TRUE
-
-            )
-            ))
+            plotly::plot_ly(source = "serie_temporal") %>%
+            # plotly::add_bars(y = ~ N, color = I(colors[2])) %>%
+            plotly::add_histogram(x = ~ fecha, color = I(colors[2])) %>%
+            plotly::layout(yaxis = list(fixedrange = TRUE)) %>%
+            plotly::config(displaylogo = FALSE,
+                           modeBarButtons = list(list("resetScale2d")))
+    )
 
     observeEvent(plotly::event_data("plotly_relayout", "serie_temporal"), {
 
@@ -179,17 +188,72 @@ server <- function(input, output) {
 
 
     output$mapa <- renderLeaflet({
-        perfiles() %>%
-            leaflet() %>%
+
+        leaflet() %>%
             addTiles() %>%    # Add default OpenStreetMap map tiles
-            addMarkers(lng = ~lon, lat = ~lat, popup = ~ paste0(numero, " ", clase),
-                       label = ~ numero,
-                       clusterOptions = markerClusterOptions()) %>%
             addMiniMap(zoomLevelOffset = -4,
                        zoomLevelFixed = 2,
                        zoomAnimation = FALSE, toggleDisplay = TRUE,
-                       strings = list(hideText = "Minimizar mapita", showText = "Mostrar mapita"))
+                       strings = list(hideText = "Minimizar mapita", showText = "Mostrar mapita")) %>%
+            addDrawToolbar(targetGroup = "draw", singleFeature = TRUE,
+                           rectangleOptions = drawRectangleOptions(shapeOptions = drawShapeOptions(weight = 2, opacity = .8, fillOpacity = 0.1, color = colors[2], fillColor = colors[2])),
+                           polylineOptions = FALSE,
+                           polygonOptions = FALSE,
+                           circleOptions = FALSE,
+                           markerOptions = FALSE,
+                           circleMarkerOptions = FALSE,
+                           editOptions = editToolbarOptions(edit = FALSE, allowIntersection = FALSE)
+                           ) %>%
+            fitBounds(min(perfiles_todo$lon), min(perfiles_todo$lat), max(perfiles_todo$lon),
+                      max(perfiles_todo$lat),
+                      options = list(animate = TRUE)) %>%
+            addLegend("topright", colors = colors, labels = c("No seleccionado", "Seleccionado"))
+
+
     })
+
+
+    observe({
+        leafletProxy("mapa") %>%
+            clearMarkers() %>%
+            addCircleMarkers(lng = ~lon, lat = ~lat, popup = ~ paste0(numero, " ", clase),
+                             label = ~ numero, color = ~ colors[selected+1], radius = 2,
+                             data = perfiles())
+
+    })
+
+
+
+    observeEvent(input$mapa_draw_new_feature, {
+
+        lons <- vapply(input$mapa_draw_new_feature$geometry$coordinates[[1]], "[[", numeric(1), 1)
+        lats <- vapply(input$mapa_draw_new_feature$geometry$coordinates[[1]], "[[", numeric(1), 2)
+
+
+        updateNumericInput(inputId = "oeste", value = min(lons))
+        updateNumericInput(inputId = "este", value = max(lons))
+        updateNumericInput(inputId = "sur", value = min(lats))
+        updateNumericInput(inputId = "norte", value = max(lats))
+
+        leafletProxy("mapa") %>%
+            fitBounds(min(lons), min(lats), max(lons), max(lats),
+                      options = list(animate = TRUE))
+    })
+
+    observeEvent(input$mapa_draw_deleted_features,  {
+# browser()
+        updateNumericInput(inputId = "oeste", value = min(perfiles_todo$lon))
+        updateNumericInput(inputId = "este", value = max(perfiles_todo$lon))
+        updateNumericInput(inputId = "sur", value = min(perfiles_todo$lat))
+        updateNumericInput(inputId = "norte", value = max(perfiles_todo$lat))
+
+        leafletProxy("mapa") %>%
+            fitBounds(min(perfiles_todo$lon), min(perfiles_todo$lat), max(perfiles_todo$lon),
+                      max(perfiles_todo$lat),
+                      options = list(animate = TRUE))
+        # input$mapa_draw_deletestop <- FALSE
+    })
+
 
     output$tabla <- DT::renderDataTable(DT::datatable(perfiles()))
 
@@ -197,7 +261,7 @@ server <- function(input, output) {
     datos_todos <- data.table::fread("datos/datos_perfiles.csv")
     perfiles_datos <- reactive({
         datos_todos %>%
-            .[perfil_id %in% perfiles()$perfil_id]
+            .[perfil_id %in% perfiles()[selected == TRUE]$perfil_id]
     })
 
     output$exportar <- downloadHandler(
