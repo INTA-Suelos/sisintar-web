@@ -87,16 +87,16 @@ ui <- dashboardPage(
                                column(4, offset = 4, numericInput("sur", "Sur", -60))
                            )
 
-                                ),
-                            column(8, leafletOutput("mapa"))
-                            ),
+                    ),
+                    column(8, leafletOutput("mapa"))
+                ),
                 fluidRow(
-                            column(4,
-                            dateInput("fecha_inicio", "Fecha inicial", "1900-01-01"),
-                            dateInput("fecha_final", "Fecha final"),
-                            ),
-                            column(8,  plotly::plotlyOutput("serie"))
-                    )
+                    column(4,
+                           dateInput("fecha_inicio", "Fecha inicial", "1900-01-01"),
+                           dateInput("fecha_final", "Fecha final"),
+                    ),
+                    column(8,  plotly::plotlyOutput("serie"))
+                )
             )
         ),
         fluidRow(
@@ -114,20 +114,20 @@ ui <- dashboardPage(
                        checkboxInput("todas", "Todas las variables")
                 )
             )
-            ),
+        ),
         fluidRow(
             box(title = h2("Procesamiento"), width = 12,
                 column(width = 4,
-                            checkboxInput("fix_na", "Imputar máxima profundidad inferior si es NA?"),
-                            numericInput("na_profundidad", "Grosor del último horizonte (cm)", value = 5)
-                            ),
+                       checkboxInput("fix_na", "Imputar máxima profundidad inferior si es NA?"),
+                       numericInput("na_profundidad", "Grosor del último horizonte (cm)", value = 5)
+                ),
                 column(width = 6,
-                            selectInput("interpolacion", "Interpolación",
-                                        choices = c("Ninguna", "Promedio Ponderado", "Splines")),
-                            fluidRow(
-                                column(6, numericInput("max", "Máxima profundidad (cm)", 100)),
-                                column(6, numericInput("res", "Resolución vertical (cm)", 1))
-                            )
+                       selectInput("interpolacion", "Interpolación",
+                                   choices = c("Ninguna", "Promedio Ponderado", "Splines")),
+                       fluidRow(
+                           column(6, numericInput("max", "Máxima profundidad (cm)", 100)),
+                           column(6, numericInput("res", "Resolución vertical (cm)", 1))
+                       )
                 )
             )
         )
@@ -153,13 +153,30 @@ server <- function(input, output) {
 
     output$serie <- plotly::renderPlotly(
         tiempo() %>%
-            plotly::plot_ly(x = ~fecha) %>%
+            plotly::plot_ly(x = ~fecha, source = "serie_temporal") %>%
             plotly::add_bars(y = ~ N) %>%
-            plotly::layout(xaxis = list(
-                rangeslider = list(type = "date")
+            plotly::layout(yaxis = list(
+                fixedrange = TRUE
 
             )
             ))
+
+    observeEvent(plotly::event_data("plotly_relayout", "serie_temporal"), {
+
+        zoom <- plotly::event_data("plotly_relayout", "serie_temporal")
+        if (is.null(zoom) || names(zoom[1]) %in% c("xaxis.autorange", "width")) {
+            updateDateInput(inputId = "fecha_inicio", value = "1900-01-01")
+            updateDateInput(inputId = "fecha_final", value = Sys.Date())
+        } else {
+            updateDateInput(inputId = "fecha_inicio", value = zoom$`xaxis.range[0]`)
+            updateDateInput(inputId =  "fecha_final", value = zoom$`xaxis.range[1]`)
+
+
+        }
+
+    })
+
+
 
     output$mapa <- renderLeaflet({
         perfiles() %>%
