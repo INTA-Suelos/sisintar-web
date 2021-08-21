@@ -16,7 +16,8 @@ library(leaflet)
 library(leaflet.extras)
 source("apariencia.R")
 
-debugonce(SISINTAR::interpolar_perfiles)
+# debugonce(SISINTAR::interpolar_perfiles)
+
 buscar_perfiles <- function(perfiles,
                             rango_lon = NULL,
                             rango_lat = NULL,
@@ -290,7 +291,6 @@ server <- function(input, output) {
         }
 
         if (input$interpolacion != "Ninguna") {
-            browser()
             datos <- SISINTAR::separar_perfiles(datos)
 
             ids <- colnames(datos$horizontes) %in% c("perfil_id", "profundidad_inferior", "profundidad_superior")
@@ -317,6 +317,25 @@ server <- function(input, output) {
                    "Splines"  = SISINTAR::interpolar_spline()
                    )
 
+            if (input$interpolacion == "Splines") {
+                malos <- data.table::as.data.table(datos$horizontes)[, .SD[is.na(profundidad_inferior + profundidad_superior)], by = perfil_id]
+                malos <- unique(malos$perfil_id)
+
+                if (length(malos) > 0) {
+
+                    showModal(modalDialog(
+                        title = "Perfiles con profundidades faltnates.",
+                        paste0("La interpolación con splines no acepta valores faltantes en profundidad inferior o superior.",
+                               "Los siguientes perfiles tienen valores faltanes que no pudieron imputarse:",
+                               paste0(malos, collapse = ", "),
+                               ".")
+                    ))
+                    return(NULL)
+                }
+
+
+            }
+
 
             datos$horizontes <- SISINTAR::interpolar_perfiles(datos$horizontes,
                                           variables = colnames(datos$horizontes)[numericos & !ids],
@@ -339,11 +358,19 @@ server <- function(input, output) {
             }
         },
         content = function(file) {
-            if (input$formato == "CSV"){
-                data.table::fwrite(perfiles_estandaraizados(), file)
-            } else if (input$formato == "EXCEL") {
-                SISINTAR::exportar_excel(perfiles_estandaraizados(), file)
+            datos <- perfiles_estandaraizados()
+# browser()
+            if (is.null(datos)) {
+
+            } else {
+                if (input$formato == "CSV") {
+                    data.table::fwrite(datos, file)
+                } else if (input$formato == "EXCEL") {
+                    SISINTAR::exportar_excel(datos, file)
+                }
             }
+
+
 
         }
     )
