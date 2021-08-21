@@ -13,8 +13,10 @@ library(magrittr)
 library(shinydashboard)
 library(dashboardthemes)
 library(leaflet)
+library(leaflet.extras)
 source("apariencia.R")
 
+debugonce(SISINTAR::interpolar_perfiles)
 buscar_perfiles <- function(perfiles,
                             rango_lon = NULL,
                             rango_lat = NULL,
@@ -103,15 +105,13 @@ ui <- dashboardPage(
             box(title = h2("Selección de variables"), width = 12,
                 column(6,
                        selectInput("variables_horizonte", "Variables de horizonte",
-                                   choices = variables_horizonte,
-                                   multiple = TRUE),
-                       checkboxInput("todas", "Todas las variables")
+                                   choices = c("Todas las variables" = "", variables_horizonte),
+                                   multiple = TRUE)
                 ),
                 column(6,
                        selectInput("variables_perfil", "Variables de perfil",
-                                   choices = variables_perfil,
-                                   multiple = TRUE),
-                       checkboxInput("todas", "Todas las variables")
+                                   choices = c("Todas las variables" = "", variables_perfil),
+                                   multiple = TRUE)
                 )
             )
         ),
@@ -148,7 +148,6 @@ server <- function(input, output) {
 
 
     perfiles <- reactive({
-        # browser()
         perfiles_todo %>%
             copy() %>%
             .[, selected := lat %between%  c(input$sur, input$norte) &
@@ -203,7 +202,7 @@ server <- function(input, output) {
                            markerOptions = FALSE,
                            circleMarkerOptions = FALSE,
                            editOptions = editToolbarOptions(edit = FALSE, allowIntersection = FALSE)
-                           ) %>%
+            ) %>%
             fitBounds(min(perfiles_todo$lon), min(perfiles_todo$lat), max(perfiles_todo$lon),
                       max(perfiles_todo$lat),
                       options = list(animate = TRUE)) %>%
@@ -241,7 +240,6 @@ server <- function(input, output) {
     })
 
     observeEvent(input$mapa_draw_deleted_features,  {
-# browser()
         updateNumericInput(inputId = "oeste", value = min(perfiles_todo$lon))
         updateNumericInput(inputId = "este", value = max(perfiles_todo$lon))
         updateNumericInput(inputId = "sur", value = min(perfiles_todo$lat))
@@ -251,18 +249,85 @@ server <- function(input, output) {
             fitBounds(min(perfiles_todo$lon), min(perfiles_todo$lat), max(perfiles_todo$lon),
                       max(perfiles_todo$lat),
                       options = list(animate = TRUE))
-        # input$mapa_draw_deletestop <- FALSE
     })
-
 
     output$tabla <- DT::renderDataTable(DT::datatable(perfiles()))
 
-
     datos_todos <- data.table::fread("datos/datos_perfiles.csv")
-    perfiles_datos <- reactive({
-        datos_todos %>%
+    datos_perfiles_selecionados <- reactive({
+        datos <- datos_todos %>%
             .[perfil_id %in% perfiles()[selected == TRUE]$perfil_id]
+
+        variables <- c(input$variables_horizonte, input$variables_perfil)
+
+        if (length(variables) != 0) {
+            variables <- c("perfil_id", "profundidad_inferior", "profundidad_superior", variables)
+            datos[, variables, with = FALSE]
+        } else {
+            datos
+        }
     })
+
+    # perfiles_estandarizados
+    observeEvent(input$interpolacion,
+                 if (input$interpolacion != "Ninguna") {
+                     updateCheckboxInput(inputId = "fix_na", value = TRUE)
+                 }
+    )
+
+    # perfiles_estandarizados
+    observeEvent(input$fix_na,
+                 if (input$fix_na == FALSE) {
+                     updateSelectInput(inputId = "interpolacion", selected = "Ninguna")
+                 }
+    )
+
+
+    perfiles_estandaraizados <- reactive({
+        datos <- datos_perfiles_selecionados()
+        if (input$fix_na == TRUE) {
+            datos <- SISINTAR::imputar_profundidad_inferior(datos, profundidad = input$na_profundidad)
+        }
+
+        if (input$interpolacion != "Ninguna") {
+            browser()
+            datos <- SISINTAR::separar_perfiles(datos)
+
+            ids <- colnames(datos$horizontes) %in% c("perfil_id", "profundidad_inferior", "profundidad_superior")
+
+            numericos <- vapply(datos$horizontes, is.numeric, logical(1))
+
+            categoricas <- colnames(datos$horizontes)[!(numericos | ids)]
+            if (length(categoricas)) {
+                malas <- names(variables_horizonte[variables_horizonte %in% categoricas])
+
+                showModal(modalDialog(
+                    title = "Variables categóricas seleccionadas",
+                    paste0("Sólo se pueden interpolar variables continuas.",
+                           " Las siguientes variables serán ignoradas:\n",
+                           paste0(malas, collapse = ", "),
+                           ".")
+                ))
+            }
+
+            horizontes_interpolar <- seq(0, input$max, by = input$res)
+
+            metodo_interpolar <- switch(input$interpolacion,
+                   "Promedio Ponderado" = SISINTAR::interpolar_promedio_ponderado(),
+                   "Splines"  = SISINTAR::interpolar_spline()
+                   )
+
+
+            datos$horizontes <- SISINTAR::interpolar_perfiles(datos$horizontes,
+                                          variables = colnames(datos$horizontes)[numericos & !ids],
+                                          horizontes = horizontes_interpolar,
+                                          metodo = metodo_interpolar)
+            datos <- merge(datos$sitios, datos$horizontes, by = "perfil_id")
+        }
+
+        datos
+    })
+
 
     output$exportar <- downloadHandler(
         contentType = if (input$formato == "CSV") "text/csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -275,10 +340,9 @@ server <- function(input, output) {
         },
         content = function(file) {
             if (input$formato == "CSV"){
-                data.table::fwrite(perfiles_datos(), file)
+                data.table::fwrite(perfiles_estandaraizados(), file)
             } else if (input$formato == "EXCEL") {
-                browser()
-                SISINTAR::exportar_excel(perfiles_datos(), file)
+                SISINTAR::exportar_excel(perfiles_estandaraizados(), file)
             }
 
         }
