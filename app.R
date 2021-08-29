@@ -324,18 +324,16 @@ server <- function(input, output) {
                 if (length(malos) > 0) {
 
                     showModal(modalDialog(
-                        title = "Perfiles con profundidades faltnates.",
+                        title = "Perfiles con profundidades faltantes",
                         paste0("La interpolación con splines no acepta valores faltantes en profundidad inferior o superior.",
                                "Los siguientes perfiles tienen valores faltanes que no pudieron imputarse:",
                                paste0(malos, collapse = ", "),
                                ".")
                     ))
-                    return(NULL)
+                    datos$horizontes <- datos$horizontes[!(datos$horizontes$perfil_id %in% malos), ]
+                    datos$sitios <- datos$sitios[!(datos$sitios$perfil_id %in% malos), ]
                 }
-
-
             }
-
 
             datos$horizontes <- SISINTAR::interpolar_perfiles(datos$horizontes,
                                           variables = colnames(datos$horizontes)[numericos & !ids],
@@ -359,7 +357,6 @@ server <- function(input, output) {
         },
         content = function(file) {
             datos <- perfiles_estandaraizados()
-# browser()
             if (is.null(datos)) {
 
             } else {
