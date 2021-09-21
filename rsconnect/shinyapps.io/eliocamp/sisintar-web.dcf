@@ -1,0 +1,13 @@
+name: sisintar-web
+title: sisintar-web
+username:
+account: eliocamp
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4555726
+bundleId: 4978159
+url: https://eliocamp.shinyapps.io/sisintar-web/
+when: 1630275479.88927
+lastSyncTime: 1630275479.88929
+asMultiple: FALSE
+asStatic: FALSE

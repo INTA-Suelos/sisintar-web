@@ -1,0 +1,13 @@
+name: sisintar-web
+title: sisintar-web
+username:
+account: sisinta
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4699571
+bundleId: 5056604
+url: https://sisinta.shinyapps.io/sisintar-web/
+when: 1632240238.22657
+lastSyncTime: 1632240238.22661
+asMultiple: FALSE
+asStatic: FALSE
