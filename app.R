@@ -17,6 +17,15 @@ library(leaflet.extras)
 source("apariencia.R")
 
 # debugonce(SISINTAR::interpolar_perfiles)
+as_polygon <- function(feature) {
+
+    geometry <- feature$geometry$coordinates[[1]]
+    x <- unlist(lapply(geometry, function(x) x[1]))
+    y <- unlist(lapply(geometry, function(x) x[2]))
+    sf::st_polygon(list(cbind(x, y)))
+
+}
+
 
 buscar_perfiles <- function(perfiles,
                             rango_lon = NULL,
@@ -149,10 +158,13 @@ server <- function(input, output) {
 
 
     perfiles <- reactive({
+        points <- sf::st_as_sf(perfiles_todo, coords = c("lon", "lat"))
+        in_polygon <- sf::st_intersects(points, polygon(), sparse = FALSE)
+        in_polygon <- rowMeans(in_polygon) != 0
+
         perfiles_todo %>%
             copy() %>%
-            .[, selected := lat %between%  c(input$sur, input$norte) &
-                  lon %between%  c(input$oeste, input$este) &
+            .[, selected := in_polygon &
                   fecha %between%  c(input$fecha_inicio, input$fecha_final)]
     })
 
@@ -195,10 +207,10 @@ server <- function(input, output) {
                        zoomLevelFixed = 2,
                        zoomAnimation = FALSE, toggleDisplay = TRUE,
                        strings = list(hideText = "Minimizar mapita", showText = "Mostrar mapita")) %>%
-            addDrawToolbar(targetGroup = "draw", singleFeature = TRUE,
+            addDrawToolbar(targetGroup = "draw", singleFeature = FALSE,
                            rectangleOptions = drawRectangleOptions(shapeOptions = drawShapeOptions(weight = 2, opacity = .8, fillOpacity = 0.1, color = colors[2], fillColor = colors[2])),
                            polylineOptions = FALSE,
-                           polygonOptions = FALSE,
+                           polygonOptions =  drawPolygonOptions(shapeOptions = drawShapeOptions(weight = 2, opacity = .8, fillOpacity = 0.1, color = colors[2], fillColor = colors[2])),
                            circleOptions = FALSE,
                            markerOptions = FALSE,
                            circleMarkerOptions = FALSE,
@@ -222,13 +234,25 @@ server <- function(input, output) {
 
     })
 
-
+    polygon <- reactive({
+        if (is.null(input$mapa_draw_all_features)) {
+            sf::st_as_sfc(list(
+                sf::st_polygon(list(matrix(c(input$oeste, input$sur,
+                                             input$oeste, input$norte,
+                                             input$este, input$norte,
+                                             input$este, input$sur,
+                                             input$oeste, input$sur), ncol = 2, byrow = TRUE)))
+            ))
+        } else {
+            sf::st_as_sfc(lapply(input$mapa_draw_all_features$features , as_polygon))
+        }
+    })
 
     observeEvent(input$mapa_draw_new_feature, {
+        bbox <- sf::st_bbox(polygon())
 
-        lons <- vapply(input$mapa_draw_new_feature$geometry$coordinates[[1]], "[[", numeric(1), 1)
-        lats <- vapply(input$mapa_draw_new_feature$geometry$coordinates[[1]], "[[", numeric(1), 2)
-
+        lons <- bbox[c(1, 3)]
+        lats <- bbox[c(2, 4)]
 
         updateNumericInput(inputId = "oeste", value = min(lons))
         updateNumericInput(inputId = "este", value = max(lons))
