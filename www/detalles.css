@@ -1,0 +1,11 @@
+.main-sidebar h2, h3, h4 {
+  color: white;
+}
+
+.skin-blue .sidebar a {
+    color: #ffffff;
+}
+
+section.sidebar .shiny-input-container {
+    padding: 12px 15px 0px 0px;
+}

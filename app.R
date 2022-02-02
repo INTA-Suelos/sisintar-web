@@ -73,19 +73,29 @@ variables_horizonte <- setNames(nombres_horizonte$Nombre_csv, nombres_horizonte$
 
 ui <- dashboardPage(
 
+    title = "SiSINTA",
+
     dashboardHeader(title = img(src="logo.png", width = 170)),
     dashboardSidebar(
+        tags$link(rel = "stylesheet", type = "text/css", href = "detalles.css"),
+        h3("Sistema de información de Suelos del INTA"),
+        p("Para seleccionar perfiles a exportar se puede seleccionar un área del mapa, ingresar coordenadas y/o seleccionar un periodo. Luego seleccionar el formato del archivo a exportar"),
         sidebarMenu(
-            selectInput("formato", "Formato", choices = c("CSV", "EXCEL")),
+            selectInput("formato", h4("Formato"), choices = c("CSV", "EXCEL")),
             downloadButton("exportar", "Exportar")
-        )
+        ),
+        hr(),
+        p(a(icon("envelope"), "Contacto", href = "maito:sisinta@inta.gob.ar¨")),
+        p(a(icon("github"), "Código fuente", href = "https://github.com/INTA-Suelos/sisintar-web")),
+        p(a(icon("globe"), "SiSINTA Web", href = "http://sisinta.inta.gob.ar/"))
+
     ),
     dashboardBody(
         ### changing theme
         sisinta_theme,
 
         fluidRow(
-            box(title = h2("Selección de sitios"), width = 12,
+            box(title = h2("Selección de perfiles"), width = 12,
                 fluidRow(
                     column(4,
                            fluidRow(
