@@ -5,9 +5,9 @@ account: sisinta
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4699571
-bundleId: 5056604
+bundleId: 5536458
 url: https://sisinta.shinyapps.io/sisintar-web/
-when: 1632240238.22657
-lastSyncTime: 1632240238.22661
+when: 1643834922.86649
+lastSyncTime: 1643834922.86651
 asMultiple: FALSE
 asStatic: FALSE
