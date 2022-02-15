@@ -394,9 +394,12 @@ server <- function(input, output) {
       }
     },
     content = function(file) {
+      shinybusy::show_modal_spinner(spin = "circle",
+                                    text = "Preparando datos..",
+                                    color = "#005579")
       datos <- perfiles_estandaraizados()
+      shinybusy::remove_modal_spinner()
       if (is.null(datos)) {
-
       } else {
         if (input$formato == "CSV") {
           data.table::fwrite(datos, file)
@@ -404,7 +407,6 @@ server <- function(input, output) {
           SISINTAR::exportar_excel(datos, file)
         }
       }
-
 
 
     }
